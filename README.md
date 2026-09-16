@@ -1,5 +1,13 @@
 # Baseline Predictive Pipeline -- ETAI
 
+20231619 Duarte Fernandes
+
+Week 2:
+Decision Tree: train - 0.83; test - 0.63
+Logistic Regression: train - 0.678; test - 0.677
+
+Current Best model is the **Logistic Regression** one because the tree is clearly overfitting.
+
 This is the **starting point** for your semester project: a small but *complete* predictive pipeline -- every piece a real project needs (entry point, config, data loading, preprocessing, model, evaluation), just kept as simple as possible for now.
 
 The task: predict two-year recidivism using ProPublica's COMPAS
