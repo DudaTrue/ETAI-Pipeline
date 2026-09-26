@@ -1,22 +1,13 @@
 # Baseline Predictive Pipeline -- ETAI
 
-20231619 Duarte Fernandes
+# Duarte Fernandes 20231619
 
-Week 2:
-Decision Tree: train - 0.83; test - 0.63
-Logistic Regression: train - 0.678; test - 0.677
+## Overview
+This project predicts recidivism, specifically, whether a defendant released from jail will commit another crime within two years, modeled directly on the COMPAS risk-assessment tool used by U.S. courts for bail, sentencing, and parole decisions. The algorithm takes details like prior offenses and age to assign an individual a risk score intended to help judges gauge public safety.
 
-Current Best model is the **Logistic Regression** one because the tree is clearly overfitting.
+What makes this problem so compelling is the human impact of algorithmic justice, combined with a notorious real-world failure in algorithmic fairness. In 2016, an investigation revealed that while the system had similar overall accuracy across racial groups, its errors were severely skewed, as in Black defendants were nearly twice as likely to be falsely flagged as high-risk, while white defendants were far more likely to be mislabeled as low-risk before reoffending.
 
-This is the **starting point** for your semester project: a small but *complete* predictive pipeline -- every piece a real project needs (entry point, config, data loading, preprocessing, model, evaluation), just kept as simple as possible for now.
-
-The task: predict two-year recidivism using ProPublica's COMPAS
-dataset -- the data behind a real 2016 investigation into a risk-
-assessment algorithm actually used by US courts to help inform bail and sentencing decisions. See `data/README.md` for the full problem description and a complete data dictionary before you start.
-
-It has some **deliberately weak spots**. Part of your work this
-semester is finding them and making them better -- see the pipeline progress table below, which tracks what changes and why as the weeks
-go on.
+What drew me to this is how easy it is to think computers are neutral, when in reality they just inherit our own messes. If the real world has biased policing, the training data reflects that, and a basic model will happily turn those historical patterns into unfair decisions that ruin lives. As a student, digging into this project feels eye-opening because it forces me to deal with a harsh reality that you can't just throw raw data into a model and hope it's fair. Learning how to spot where that bias sneaks in and actually trying to fix it in code feels like using data science for something that genuinely matters.
 
 ## Project structure
 
@@ -44,6 +35,41 @@ This table is updated after each practical class, so you can always see what cha
 | Week | Practical class focus | Added to the pipeline |
 |------|------------------------|------------------------|
 | 2 | Introduction & baseline pipeline | Initial version: project structure, a single naive train/test split (no cross-validation), minimal preprocessing (drop rows with missing values, one-hot encode categoricals), logistic regression baseline, a first (deliberately simple) fairness check comparing our model's and COMPAS's own false-positive rate by race, train-vs-test accuracy reporting (to start spotting overfitting), and each run's full report saved automatically to `results/` |
+| 3 | EDA + preprocessing -- diagnose the data, then fix it | `src/data_diagnostics.py` (missingness-mechanism test via chi-square + Cramér's V, domain-rule invalid-value detection, two-way duplicate check) and `src/preprocessing.py` (leak-safe category cleanup, mechanism-matched imputation with `_was_missing` indicators for MNAR columns, a deployable `ColumnTransformer`, **and** the train/test split itself, all in the one file rather than split across two) replace the old naive `dropna()` / `pd.get_dummies()` preprocessing; encoder/scaler pair (count encoding + robust scaling) chosen by an empirical grid over 15 repeated splits, checked against the runner-up with a paired comparison so the win isn't just noise; three redundant columns (found via correlation + VIF) dropped; `config.yaml` gains `diagnostics` and `preprocessing` sections -- see "Preprocessing decisions" below. |
+|---|---|---|
+
+## Preprocessing decisions
+
+| Column(s) | Issue found | Mechanism | What was done |
+| :--- | :--- | :--- | :--- |
+| `age` | 2.0% missing | MCAR | median impute, no indicator needed |
+| `juv_fel_count` | 3.0% missing | MCAR | median impute, no indicator needed |
+| `priors_count` | ~7% missing (incl. placeholder tokens) | MNAR -- tied to `age_cat` | median impute + `priors_count_was_missing` flag |
+| `c_charge_degree` | 3.2% missing | MNAR -- tied to `age_cat` | mode impute + `c_charge_degree_was_missing` flag |
+| `race` | ~1% missing (placeholder tokens) | MCAR | mode impute, no indicator (excluded from model features anyway) |
+| `sex` | ~1.5% missing (incl. placeholder tokens) | MCAR | mode impute, no indicator needed |
+| `age`, `decile_score`, `juv_fel_count`, `priors_count` | invalid values (out-of-range or negative) | domain rule | converted to `NaN` before imputation |
+| `sex` / `race` / `c_charge_degree` / `score_text` | inconsistent category spelling (casing, whitespace, abbreviations) | data entry | canonicalized to one spelling per category |
+| whole rows | 72 exact-duplicate rows, all sharing a repeated `id` | data entry | dropped, kept first occurrence |
+| `prior_offenses`, `age_in_months`, `juvenile_total` | redundant with other columns (correlation r=1.00, or -- for `juvenile_total` -- an exact sum caught only by VIF) | multicollinearity | dropped |
+
+**Encoder/scaler pair:** chosen empirically -- 4 encoders (one-hot, ordinal, count, target) × 4 scalers (none, standard, min-max, robust), scored by mean accuracy across 15 repeated train/test splits with logistic regression. **Target encoding + standard scaling won**, though a paired comparison against the runner-up (same 15 splits, per-split difference) showed the margin was within noise.
+
+## Best Model
+
+Week 2 (16/9):
+
+Decision Tree: train - 0.83; test - 0.63
+
+Logistic Regression: train - 0.678; test - 0.677
+
+Week 3 - full preprocessing (26/09):
+
+Decision Tree: train - 0.792; test - 0.613
+
+Logistic Regression: train - 0.676; test - 0.657
+
+Both Decision Trees are overfitting so we will exclude those as best models. While the September 16 Logistic Regression model posts a slightly higher test accuracy (67.7% vs. 65.7%), keeping it would mean relying on a model evaluated on fundamentally corrupted, uncleaned data. That run suffered from severe data quality issues, most notably fractured, non-canonical demographic categories where entries were split across dirty labels like `-`, `?`, `AFRICAN-AMERICAN`, and lowercase variants, which artificially constrained the evaluation sample and produced misleadingly low subgroup counts. By contrast, the September 26 pipeline implements proper data hygiene, handling invalid entries, duplicates, and category canonicalization, which results in a valid, leak-safe test set of 1,443 rows rather than 1,252. Because you cannot reliably trust performance metrics derived from bad data, and because the primary goal of this project is mitigating algorithmic unfairness, the September 26 model is vastly superior as it operates on dependable data integrity while substantially slashing the real-world harm of the original COMPAS tool, reducing the false positive rate for Black defendants from 44% down to 28%.
 
 ## Environment setup
 
