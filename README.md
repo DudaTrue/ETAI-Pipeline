@@ -38,6 +38,17 @@ This table is updated after each practical class, so you can always see what cha
 | 3 | EDA + preprocessing -- diagnose the data, then fix it | `src/data_diagnostics.py` (missingness-mechanism test via chi-square + Cramér's V, domain-rule invalid-value detection, two-way duplicate check) and `src/preprocessing.py` (leak-safe category cleanup, mechanism-matched imputation with `_was_missing` indicators for MNAR columns, a deployable `ColumnTransformer`, **and** the train/test split itself, all in the one file rather than split across two) replace the old naive `dropna()` / `pd.get_dummies()` preprocessing; encoder/scaler pair (count encoding + robust scaling) chosen by an empirical grid over 15 repeated splits, checked against the runner-up with a paired comparison so the win isn't just noise; three redundant columns (found via correlation + VIF) dropped; `config.yaml` gains `diagnostics` and `preprocessing` sections -- see "Preprocessing decisions" below. |
 |---|---|---|
 
+### Model Evaluation
+
+| Model | Holdout accuracy (W3) | CV accuracy (mean ± std) | CV train-val gap |
+|---|---|---|---|
+| Dummy | — | 0.549 ± 0.0 | ±0.0 |
+| Logistic regression | 0.657 | 0.673 ± 0.014 | +0.002 |
+| Decision tree | 0.613 | 0.597 ± 0.005 | +0.102 |
+| Random forest | — | 0.654 ± 0.013| +0.082 |
+
+The cross-validation validation accuracy (mean ± std) is the most trustworthy metric because it averages performance over five stratified splits, mitigating the variance and potential split bias of a single holdout set. Yes, the Week 3 conclusion holding Logistic Regression as the best model remains firmly intact under cross-validation. While the Decision Tree showed higher raw holdout accuracy in Week 3 (0.613 vs. 0.597 in CV), it consistently suffers from heavy overfitting with substantial train-test and train-validation gaps (+0.178 and +0.102). Conversely, Logistic Regression demonstrates both the highest CV accuracy (0.673) and virtually no generalization gap (+0.002), confirming it is far more reliable and stable than tree-based alternatives.
+
 ## Preprocessing decisions
 
 | Column(s) | Issue found | Mechanism | What was done |
@@ -54,22 +65,6 @@ This table is updated after each practical class, so you can always see what cha
 | `prior_offenses`, `age_in_months`, `juvenile_total` | redundant with other columns (correlation r=1.00, or -- for `juvenile_total` -- an exact sum caught only by VIF) | multicollinearity | dropped |
 
 **Encoder/scaler pair:** chosen empirically -- 4 encoders (one-hot, ordinal, count, target) × 4 scalers (none, standard, min-max, robust), scored by mean accuracy across 15 repeated train/test splits with logistic regression. **Target encoding + standard scaling won**, though a paired comparison against the runner-up (same 15 splits, per-split difference) showed the margin was within noise.
-
-## Best Model
-
-Week 2 (16/9):
-
-Decision Tree: train - 0.83; test - 0.63
-
-Logistic Regression: train - 0.678; test - 0.677
-
-Week 3 - full preprocessing (26/09):
-
-Decision Tree: train - 0.792; test - 0.613
-
-Logistic Regression: train - 0.676; test - 0.657
-
-Both Decision Trees are overfitting so we will exclude those as best models. While the September 16 Logistic Regression model posts a slightly higher test accuracy (67.7% vs. 65.7%), keeping it would mean relying on a model evaluated on fundamentally corrupted, uncleaned data. That run suffered from severe data quality issues, most notably fractured, non-canonical demographic categories where entries were split across dirty labels like `-`, `?`, `AFRICAN-AMERICAN`, and lowercase variants, which artificially constrained the evaluation sample and produced misleadingly low subgroup counts. By contrast, the September 26 pipeline implements proper data hygiene, handling invalid entries, duplicates, and category canonicalization, which results in a valid, leak-safe test set of 1,443 rows rather than 1,252. Because you cannot reliably trust performance metrics derived from bad data, and because the primary goal of this project is mitigating algorithmic unfairness, the September 26 model is vastly superior as it operates on dependable data integrity while substantially slashing the real-world harm of the original COMPAS tool, reducing the false positive rate for Black defendants from 44% down to 28%.
 
 ## Environment setup
 

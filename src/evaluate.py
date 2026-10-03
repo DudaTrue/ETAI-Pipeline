@@ -1,6 +1,37 @@
 """Evaluation -- single train/test split, no cross-validation (yet)."""
+import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report
+from sklearn.model_selection import cross_validate
+
+def cross_validate_pipeline(pipeline, X, y, cv, scoring: str = "accuracy", n_jobs: int = 1):
+    """
+    Fits a fresh copy of `pipeline` on each fold's training part and scores it on that
+    fold's validation part. Because `pipeline` contains the preprocessing too, imputation
+    medians, encoder statistics and scaler means are re-learned inside every fold -- the
+    validation fold never influences its own preprocessing.
+
+    Returns (fold_scores, y_oof):
+      - fold_scores: one row per fold -- train score, validation score, and the gap between
+        them (a large, consistent gap = overfitting).
+      - y_oof: out-of-fold predictions. Every row gets a prediction from the one fold model
+        that did NOT train on it, so all of them are "unseen" -- what the classification
+        report and fairness check are computed on (more rows, and the locked test set stays
+        untouched). Taken from the same fits as the scores, so nothing is fitted twice.
+    """
+    scores = cross_validate(pipeline, X, y, cv=cv, scoring=scoring, return_train_score=True,
+                            return_estimator=True, return_indices=True, n_jobs=n_jobs)
+    fold_scores = pd.DataFrame({
+        "fold": range(1, len(scores["test_score"]) + 1),
+        "train": scores["train_score"],
+        "validation": scores["test_score"],
+    })
+    fold_scores["gap"] = fold_scores["train"] - fold_scores["validation"]
+
+    y_oof = np.empty(len(X), dtype=np.asarray(y).dtype)
+    for model, val_idx in zip(scores["estimator"], scores["indices"]["test"]):
+        y_oof[val_idx] = model.predict(X.iloc[val_idx])
+    return fold_scores, y_oof
 
 
 def evaluate(y_train, y_train_pred, y_test, y_pred) -> str:
@@ -21,6 +52,31 @@ def evaluate(y_train, y_train_pred, y_test, y_pred) -> str:
     lines.append(classification_report(y_test, y_pred))
 
     text = "\n".join(lines)
+    print(text)
+    return text
+
+
+def cv_report(fold_scores: pd.DataFrame, scoring: str = "accuracy") -> str:
+    """Per-fold table + mean +/- std, as text (printed, and saved to results/)."""
+    lines = [
+        f"Cross-validation ({len(fold_scores)} stratified folds, metric: {scoring})",
+        "",
+        fold_scores.to_string(index=False, float_format=lambda v: f"{v:.3f}"),
+        "",
+    ]
+    for col in ["train", "validation", "gap"]:
+        sign = "+" if col == "gap" else ""
+        lines.append(f"{col.capitalize():<11s} mean = {fold_scores[col].mean():{sign}.3f}   "
+                     f"std = {fold_scores[col].std(ddof=1):.3f}")
+    text = "\n".join(lines)
+    print(text)
+    return text
+
+
+def oof_classification_report(y_true, y_pred) -> str:
+    """Classification report on the out-of-fold predictions."""
+    text = "Classification report (out-of-fold predictions, development set):\n" + \
+        classification_report(y_true, y_pred, zero_division=0)
     print(text)
     return text
 

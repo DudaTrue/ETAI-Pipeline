@@ -7,9 +7,16 @@ data:
   sensitive_attr: "race"          # excluded from model features, used only to audit fairness
   drop_columns: ["id", "decile_score", "score_text"]  # identifiers / COMPAS's own score, not our model's inputs
 
-split:
-  test_size: 0.2
+test_set:
+  size: 0.2
   random_state: 42
+
+cv:
+  n_splits: 5
+  shuffle: true
+  random_state: 42
+  scoring: "accuracy" 
+  n_jobs: 1   
 
 diagnostics:
   id_column: "id"
@@ -55,10 +62,12 @@ preprocessing:
     categorical_strategy: "most_frequent"
 
 model:
-  type: "logistic_regression"   # or "decision_tree"
+  type: "random_forest"   # or "logistic_regression" or "dummy" or "decision_tree"
   params:
-    max_iter: 1000
-  #  random_state: 42
+  #  max_iter: 2000
+    n_estimators: 300
+    random_state: 42
+    n_jobs: -1
 
 output:
   results_dir: "results"   # each run's full report is saved here as a timestamped .txt file

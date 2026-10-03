@@ -15,9 +15,9 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler, MinMaxScaler, RobustScaler
-from category_encoders import CountEncoder, TargetEncoder
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, TargetEncoder, StandardScaler, MinMaxScaler, RobustScaler
+from category_encoders import CountEncoder
 
 from src.data_diagnostics import flag_invalid_values
 
@@ -55,7 +55,7 @@ def clean_dataset(df: pd.DataFrame, diagnostics_config: dict) -> pd.DataFrame:
     out = out.drop_duplicates()
     id_column = diagnostics_config.get("id_column")
     if id_column and id_column in out.columns:
-        out = out.drop_duplicates(subset=id_column, keep="first")
+        out = out.drop_duplicates(subset=id_column, keep="first") #dropping duplicate rows
 
     columns_to_drop = [c for c in diagnostics_config.get("redundant_columns", []) if c in out.columns]
     out = out.drop(columns=columns_to_drop)
@@ -97,10 +97,10 @@ def split_features_target(df: pd.DataFrame, data_config: dict, mnar_indicator_so
 
 _SCALERS = {"none": "passthrough", "standard": StandardScaler, "minmax": MinMaxScaler, "robust": RobustScaler}
 _ENCODERS = {
-    "onehot": lambda: OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-    "ordinal": lambda: OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
-    "count": lambda: CountEncoder(handle_unknown=0, handle_missing=0),
-    "target": lambda: TargetEncoder(handle_unknown="value", handle_missing="value"),
+    "onehot": lambda seed: OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+    "ordinal": lambda seed: OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
+    "count": lambda seed: CountEncoder(handle_unknown=0, handle_missing=0),
+    "target": lambda seed: TargetEncoder(target_type="binary", cv=StratifiedKFold(5, shuffle=True, random_state=seed)),
 }
 
 
@@ -121,7 +121,7 @@ def build_preprocessor(preprocessing_config: dict) -> ColumnTransformer:
 
     scaler_factory = _SCALERS[scaler_name]
     scaler = scaler_factory() if callable(scaler_factory) else scaler_factory
-    encoder = _ENCODERS[encoder_name]()
+    encoder = _ENCODERS[encoder_name](preprocessing_config.get("random_state"))
 
     numeric_pipeline = Pipeline([
         ("impute", SimpleImputer(strategy=imputation.get("numeric_strategy", "median"))),
