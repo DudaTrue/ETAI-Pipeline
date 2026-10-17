@@ -62,12 +62,42 @@ preprocessing:
     categorical_strategy: "most_frequent"
 
 model:
-  type: "random_forest"   # or "logistic_regression" or "dummy" or "decision_tree"
+  type: "adaboost"   # or "logistic_regression" or "dummy" or "random_forest" or "decision_tree" or "oblique_random_forest"
   params:
-  #  max_iter: 2000
+    #max_iter: 2000
     n_estimators: 300
     random_state: 42
-    n_jobs: -1
+    #n_jobs: -1
+  #  n_estimators: 200
+    #n_components: 10
+    max_depth: 1
+    learning_rate: 1.0
+
+tuning:
+  enabled: true
+  n_trials: 10
+  n_splits: 5                                       # folds that score each candidate
+  random_state: 42                                  # seeds the sampler and those folds
+  # Keys are Pipeline parameter names. Types: int / float (low, high, log) or categorical (choices).
+  # Ensembles take minutes per run: use a small n_trials while testing.
+  search_spaces:
+    decision_tree:
+      model__max_depth: {type: int, low: 1, high: 20}
+      model__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
+      model__criterion: {type: categorical, choices: ["gini", "entropy"]}
+    random_forest:
+      model__max_depth: {type: int, low: 2, high: 30}
+      model__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
+      model__max_features: {type: categorical, choices: ["sqrt", 0.5, 1.0]}
+    oblique_random_forest:
+      model__estimator__tree__max_depth: {type: int, low: 2, high: 30}
+      model__estimator__tree__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
+      model__estimator__project__n_components: {type: int, low: 3, high: 10}   # <= number of features
+    adaboost:
+      model__estimator__max_depth: {type: int, low: 1, high: 8}
+      model__n_estimators: {type: int, low: 25, high: 400, log: true}
+      model__learning_rate: {type: float, low: 0.01, high: 1.0, log: true}
+
 
 output:
   results_dir: "results"   # each run's full report is saved here as a timestamped .txt file

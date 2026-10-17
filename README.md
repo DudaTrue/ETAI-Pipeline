@@ -44,10 +44,39 @@ This table is updated after each practical class, so you can always see what cha
 |---|---|---|---|
 | Dummy | — | 0.549 ± 0.0 | ±0.0 |
 | Logistic regression | 0.657 | 0.673 ± 0.014 | +0.002 |
-| Decision tree | 0.613 | 0.597 ± 0.005 | +0.102 |
-| Random forest | — | 0.654 ± 0.013| +0.082 |
+| Decision tree | 0.613 | 0.594 ± 0.022 | +0.105 |
+| Random forest | — | 0.644 ± 0.006 | +0.095 |
+| Oblique random forest | — | 0.646 ± 0.015 | +0.118 |
+| AdaBoost | — | 0.676 ± 0.011 | +0.007 |
 
-The cross-validation validation accuracy (mean ± std) is the most trustworthy metric because it averages performance over five stratified splits, mitigating the variance and potential split bias of a single holdout set. Yes, the Week 3 conclusion holding Logistic Regression as the best model remains firmly intact under cross-validation. While the Decision Tree showed higher raw holdout accuracy in Week 3 (0.613 vs. 0.597 in CV), it consistently suffers from heavy overfitting with substantial train-test and train-validation gaps (+0.178 and +0.102). Conversely, Logistic Regression demonstrates both the highest CV accuracy (0.673) and virtually no generalization gap (+0.002), confirming it is far more reliable and stable than tree-based alternatives.
+The cross-validation validation accuracy (mean ± std) is the most trustworthy metric because it averages performance over five stratified splits, mitigating the variance and potential split bias of a single holdout set. Under default settings, AdaBoost (0.676) and Logistic Regression (0.673) demonstrate the best baseline performance and the tightest generalization gaps (+0.007 and +0.002). In contrast, unregularized Decision Trees and default Random Forests overfit the training splits considerably, showing gaps between +0.095 and +0.118.
+
+### Hyperparameter tuning
+How the pipeline tunes (Optuna, search space, number of trials, inner folds) and why it doesn't leak.
+
+### Hyperparameter tuning
+How the pipeline tunes (Optuna, search space, number of trials, inner folds) and why it doesn't leak.
+
+| Model | Default: CV mean ± std | Tuned: nested CV mean ± std | Tuning score (best trial) | Optimism | Chosen hyperparameters |
+|---|---|---|---|---|---|
+| Decision tree | 0.594 ± 0.022 | 0.672 ± 0.011 | 0.674 | -0.000 | `criterion='entropy'`, `max_depth=10`, `min_samples_leaf=55` |
+| Logistic regression | 0.673 ± 0.014 | — | — | — | — |
+| Random forest | 0.644 ± 0.006 | 0.681 ± 0.018 | 0.685 | +0.000 | `max_depth=16`, `max_features='sqrt'`, `min_samples_leaf=24` |
+| AdaBoost | 0.676 ± 0.011 | 0.682 ± 0.015 | 0.685 | +0.000 | `estimator__max_depth=4`, `n_estimators=55`, `learning_rate=0.167` |
+
+Decision tree (+0.078) and random forest (+0.037) gained substantially from tuning, with improvements far exceeding their fold-to-fold standard deviations, while AdaBoost saw a modest increase of +0.006. Tuning changed the top-performing model: while logistic regression was the best un-tuned baseline (0.673), tuned AdaBoost (0.682) and tuned random forest (0.681) now take the lead. For the best model (AdaBoost), the value to report is the honest nested CV score of 0.682 ± 0.015 rather than the optimistic best trial score of 0.685, as nested CV prevents data leakage by keeping outer validation folds completely isolated from hyperparameter selection.
+
+### Ensembles
+
+| Model | Default: CV mean ± std (gap) | Tuned: nested CV mean ± std (gap) | Tuning score (best trial) | Chosen hyperparameters |
+|---|---|---|---|---|
+| Logistic regression | 0.673 ± 0.014 (+0.002) | — | — | — |
+| Decision tree | 0.594 ± 0.022 (+0.105) | 0.672 ± 0.011 (+0.010) | 0.674 | `criterion='entropy'`, `max_depth=10`, `min_samples_leaf=55` |
+| Random forest | 0.644 ± 0.006 (+0.095) | 0.681 ± 0.018 (+0.007) | 0.685 | `max_depth=16`, `max_features='sqrt'`, `min_samples_leaf=24` |
+| Oblique random forest | 0.646 ± 0.015 (+0.118) | 0.680 ± 0.012 (+0.011) | 0.682 | `project__n_components=8`, `tree__max_depth=12`, `tree__min_samples_leaf=149` |
+| AdaBoost | 0.676 ± 0.011 (+0.007) | 0.682 ± 0.015 (+0.007) | 0.685 | `estimator__max_depth=4`, `n_estimators=55`, `learning_rate=0.167` |
+
+AdaBoost is the top model with an honest nested CV accuracy of 0.682 ± 0.015, followed closely by Random Forest at 0.681 ± 0.018 and Oblique Random Forest at 0.680 ± 0.012. However, its lead over both random forest variants (0.001 to 0.002) is well within the fold-to-fold standard deviations (±0.012 to ±0.018), making the ensemble performances practically equivalent within noise. The chosen hyperparameters reflect how each architecture operates: AdaBoost uses shallow base estimators (max_depth=4) paired with a conservative learning_rate=0.167 and fewer iterations (n_estimators=55) to boost sequentially without overfitting noisy labels, while Random Forest relies on deeper independent trees (max_depth=16) stabilized by large leaf minimums (min_samples_leaf=24) to average out variance. For the final deliverable, tuned AdaBoost should be reported at its honest nested CV accuracy of 0.682 ± 0.015 with a generalization gap of +0.007.
 
 ## Preprocessing decisions
 
