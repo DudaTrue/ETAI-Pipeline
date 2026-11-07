@@ -15,7 +15,8 @@ cv:
   n_splits: 5
   shuffle: true
   random_state: 42
-  scoring: "accuracy" 
+  metrics: ["accuracy", "balanced_accuracy", "precision", "recall", "f1", "fbeta_2", "roc_auc", "average_precision"]
+  selection_metric: "f1" 
   n_jobs: 1   
 
 diagnostics:
@@ -52,35 +53,43 @@ diagnostics:
   redundant_columns: ["prior_offenses", "age_in_months", "juvenile_total"]
 
 preprocessing:
-  encoder: "target"
-  scaler: "standard"
+  encoder: "target"       # onehot | ordinal | count | target
+  scaler: "standard"      # none | standard | minmax | robust
   numeric_features: ["age", "juv_fel_count", "juv_misd_count", "juv_other_count", "priors_count"]
   categorical_features: ["sex", "age_cat", "c_charge_degree"]
   mnar_indicator_sources: ["priors_count", "c_charge_degree"]
+  random_state: 42
   imputation:
     numeric_strategy: "median"
     categorical_strategy: "most_frequent"
 
 model:
-  type: "adaboost"   # or "logistic_regression" or "dummy" or "random_forest" or "decision_tree" or "oblique_random_forest"
-  params:
-    #max_iter: 2000
-    n_estimators: 300
-    random_state: 42
-    #n_jobs: -1
-  #  n_estimators: 200
-    #n_components: 10
-    max_depth: 1
-    learning_rate: 1.0
+  type: "oblique_random_forest"   # "adaboost" | "naive_bayes" | "gradient_boosting" | "hist_gradient_boosting" | "logistic_regression" | "dummy" | "random_forest" | "decision_tree" | "oblique_random_forest"
+  params: {n_estimators: 200, n_components: 10, random_state: 42, n_jobs: -1}
+  # logistic_regression:    {max_iter: 2000, class_weight: balanced}
+  # naive_bayes:            {}
+  # decision_tree:          {random_state: 42, class_weight: balanced}
+  # random_forest:          {n_estimators: 200, random_state: 42, n_jobs: -1, class_weight: balanced}
+  # oblique_random_forest:  {n_estimators: 200, n_components: 10, random_state: 42, n_jobs: -1}
+  # adaboost:               {max_depth: 1, n_estimators: 200, learning_rate: 1.0, random_state: 42}
+  # hist_gradient_boosting: {random_state: 42, class_weight: balanced}
+  # gradient_boosting:      {random_state: 42}
+  # dummy:                  {random_state: 42}
 
 tuning:
   enabled: true
-  n_trials: 10
+  n_trials: 5
   n_splits: 5                                       # folds that score each candidate
   random_state: 42                                  # seeds the sampler and those folds
   # Keys are Pipeline parameter names. Types: int / float (low, high, log) or categorical (choices).
   # Ensembles take minutes per run: use a small n_trials while testing.
   search_spaces:
+    logistic_regression:
+      model__C: {type: float, low: 0.001, high: 100.0, log: true}
+      model__penalty: {type: categorical, choices: ["l1", "l2"]}
+      model__solver: {type: categorical, choices: ["saga"]} # "saga" handles both l1 and l2
+    dummy:
+      model__strategy: {type: categorical, choices: ["most_frequent", "prior", "stratified"]}
     decision_tree:
       model__max_depth: {type: int, low: 1, high: 20}
       model__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
@@ -97,7 +106,22 @@ tuning:
       model__estimator__max_depth: {type: int, low: 1, high: 8}
       model__n_estimators: {type: int, low: 25, high: 400, log: true}
       model__learning_rate: {type: float, low: 0.01, high: 1.0, log: true}
+    gradient_boosting:
+      model__n_estimators: {type: int, low: 25, high: 500, log: true}
+      model__learning_rate: {type: float, low: 0.01, high: 0.5, log: true}
+      model__max_depth: {type: int, low: 1, high: 6}
+      model__min_samples_leaf: {type: int, low: 1, high: 200, log: true}
+      model__subsample: {type: float, low: 0.5, high: 1.0}
+    hist_gradient_boosting:
+      model__max_iter: {type: int, low: 25, high: 500, log: true}
+      model__learning_rate: {type: float, low: 0.01, high: 0.5, log: true}
+      model__max_leaf_nodes: {type: int, low: 2, high: 63, log: true}
+      model__min_samples_leaf: {type: int, low: 5, high: 200, log: true}
+      model__l2_regularization: {type: float, low: 0.000001, high: 10.0, log: true}
+    naive_bayes:
+      model__var_smoothing: {type: float, low: 0.000000000001, high: 0.1, log: true}
 
 
 output:
   results_dir: "results"   # each run's full report is saved here as a timestamped .txt file
+  scoreboard: "results/runs.csv" 
