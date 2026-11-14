@@ -40,7 +40,7 @@ preprocessing:
   ]
   categorical_features: [
     "workclass", "marital_status", "occupation", "relationship", "native_country", 
-    "race", "v19", "v20", "v21", "v22", "v23", "v24", "v25"
+    "v19", "v20", "v21", "v22", "v23", "v24", "v25"
   ]
   mnar_indicator_sources: ["workclass", "occupation"] # Missingness carries information here
   random_state: 42

@@ -13,6 +13,7 @@ import shutil
 import tempfile
 import optuna
 import yaml
+import sys
 from datetime import datetime
 from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 #from sklearn.pipeline import Pipeline
@@ -34,7 +35,10 @@ def load_config(path: str = "config.yaml") -> dict:
 
 
 def main():
-    config = load_config()
+    
+    config_path = sys.argv[1] if len(sys.argv) > 1 else "config.yaml"
+    config = load_config(config_path)
+
     run = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_type = config["model"]["type"]
 

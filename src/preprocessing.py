@@ -22,7 +22,7 @@ from category_encoders import CountEncoder
 from src.data_diagnostics import flag_invalid_values
 
 
-def _canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placeholder_tokens: set) -> pd.DataFrame:
+'''def _canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placeholder_tokens: set) -> pd.DataFrame:
     out = df.copy()
     for col, mapping in columns_and_maps.items():
         if col not in out.columns:
@@ -31,8 +31,27 @@ def _canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placehold
         lowered = cleaned.str.lower()
         out[col] = lowered.map(mapping).fillna(cleaned)
         out.loc[out[col].astype(str).str.strip().isin(placeholder_tokens), col] = np.nan
-    return out
+    return out'''
 
+def _canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placeholder_tokens: set) -> pd.DataFrame:
+    out = df.copy()
+    
+    # 1. Apply any specific mapping rules for columns defined in config (e.g. COMPAS spelling variants)
+    for col, mapping in columns_and_maps.items():
+        if col not in out.columns:
+            continue
+        cleaned = out[col].astype(str).str.strip()
+        lowered = cleaned.str.lower()
+        out[col] = lowered.map(mapping).fillna(cleaned)
+
+    # 2. Globally replace placeholder tokens (like "?") across all object/string columns
+    if placeholder_tokens:
+        for col in out.select_dtypes(include=['object', 'string']).columns:
+            # Match the exact tokens after stripping whitespace
+            mask = out[col].astype(str).str.strip().isin(placeholder_tokens)
+            out.loc[mask, col] = np.nan
+            
+    return out
 
 def clean_dataset(df: pd.DataFrame, diagnostics_config: dict) -> pd.DataFrame:
     """

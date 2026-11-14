@@ -83,7 +83,7 @@ def oof_classification_report(y_true, oof_proba, threshold: float = 0.5) -> str:
             f"{cm.to_string()}\n\n{classification_report(y_true, y_pred, zero_division=0)}")
 
 
-def fairness_report(y_true, oof_proba, extras: pd.DataFrame, sensitive_attr: str = "race",
+'''def fairness_report(y_true, oof_proba, extras: pd.DataFrame, sensitive_attr: str = "race",
                     threshold: float = 0.5) -> str:
     """
     False positive rate (share of people who did not reoffend but were predicted to) per
@@ -103,6 +103,45 @@ def fairness_report(y_true, oof_proba, extras: pd.DataFrame, sensitive_attr: str
         "",
     ]
     for label, col in [("Our model", "y_pred_model"), ("COMPAS's own score", "y_pred_compas")]:
+        lines.append(f"  {label}:")
+        for group, g in df.groupby(sensitive_attr):
+            negatives = g[g["y_true"] == 0]
+            if len(negatives) == 0:
+                continue
+            fpr = (negatives[col] == 1).mean()
+            lines.append(f"    {group:<20s} FPR = {fpr:.2f}  (n={len(negatives)})")
+        lines.append("")
+    return "\n".join(lines)'''
+
+def fairness_report(y_true, oof_proba, extras: pd.DataFrame, sensitive_attr: str = "race",
+                    threshold: float = 0.5) -> str:
+    """
+    False positive rate per group of `sensitive_attr`, for the model's out-of-fold predictions.
+    If the data contains COMPAS's own score (`score_text`), it also evaluates that for comparison.
+    Rows with an unknown group are reported as "unknown". A simple check, not a full audit.
+    """
+    df = extras.copy()
+    df[sensitive_attr] = df[sensitive_attr].astype(object).fillna("unknown")
+    df["y_true"] = pd.Series(y_true).values
+    df["y_pred_model"] = (oof_proba >= threshold).astype(int)
+    
+    # Conditionally handle COMPAS's score_text if it exists
+    has_compas = "score_text" in df.columns
+    if has_compas:
+        df["y_pred_compas"] = (df["score_text"] != "Low").astype(int)
+
+    lines = [
+        f"False positive rate by {sensitive_attr} (development set, out-of-fold)",
+        "(share of the negative class that was incorrectly predicted positive)",
+        "",
+    ]
+    
+    # Build the list of models to loop through dynamically
+    evaluations = [("Our model", "y_pred_model")]
+    if has_compas:
+        evaluations.append(("COMPAS's own score", "y_pred_compas"))
+
+    for label, col in evaluations:
         lines.append(f"  {label}:")
         for group, g in df.groupby(sensitive_attr):
             negatives = g[g["y_true"] == 0]
