@@ -41,6 +41,7 @@ This table is updated after each practical class, so you can always see what cha
 | 6 | Ensembles in depth: random forest, oblique random forest, AdaBoost | Two new model types in `src/model.py`: `oblique_random_forest` (a forest of oblique trees built from scikit-learn parts -- every tree splits on its own random sparse linear combinations of the features, via `SparseRandomProjection` inside `BaggingClassifier`) and `adaboost` (AdaBoost over decision trees of a chosen depth; stumps by default), both registered in `_MODELS`; the random forest is now the model `main.py` runs (200 trees, all CPU cores); `config.yaml` gains search spaces for the three ensembles -- the forests tune tree size (`max_depth`, `min_samples_leaf`) and decorrelation (`max_features` / number of combinations) but not the number of trees, AdaBoost tunes its base trees' depth, its number of rounds and its learning rate; `corrected_paired_test()` in `src/evaluate.py` compares two models scored on the same folds (Nadeau & Bengio's corrected paired t-test), so a "winner" is only called when the difference is bigger than fold-to-fold noise; `scipy` listed in `requirements.txt` (it already came with scikit-learn, so nothing new to install) -- see "Ensembles" below |
 | 7 | Gradient boosting + evaluating with probabilities | Three new model types in `src/model.py`: `gradient_boosting` (scikit-learn's `GradientBoostingClassifier`: each shallow tree fits the gradient of the log-loss left by the trees before it), `hist_gradient_boosting` (the same idea on binned features: much faster on large data, and it handles missing values itself) and `naive_bayes` (`GaussianNB`, a fast probabilistic baseline); gradient boosting is now the model `main.py` runs, each with its search space in `config.yaml`; evaluation now reports **several metrics** (accuracy, balanced accuracy, precision, recall, F1, F-beta, ROC-AUC, PR-AUC) and one **selection metric** (`cv.selection_metric`, ROC-AUC) that tuning maximises and runs are ranked by; out-of-fold **probabilities** (not just labels) feed the reports, with a confusion matrix; `class_weight: balanced` in the commented examples of the models that support it; new `save_scores()` in `src/results.py`: every run adds a row to `results/runs.csv` (the model and its settings, the score on each fold, the no-model floor and the untuned score on the same folds), so any two runs on the same data and folds can be compared with `corrected_paired_test()`; the printed output was reorganised to be easier to read, with the full tables in the results file (optional: keep your own format if you prefer) -- see "Model evaluation" below |
 | 8 | XGBoost + feature selection | New model type `xgboost` (`XGBClassifier`, from the `xgboost` package: gradient boosting with extra regularisation, multi-threaded, handles missing values itself), now the model `main.py` runs, with its search space in `config.yaml`; **feature selection** as a learned step of the Pipeline: new `VoteSelector` class in `src/model.py` (a random forest, gradient boosting and an L1 logistic regression vote; features with at least `min_votes` votes are kept), placed between `"prep"` and `"model"` by `build_pipeline()` when the new `feature_selection` section of `config.yaml` switches it on, so it is re-fitted on the training rows of every fold (never on the rows it is scored on); with tuning on, `select__min_votes` is tuned with the model and assessed by nested CV; the pipeline caches fitted preprocessing and selection steps during a run (`Pipeline(memory=...)`, a temporary folder deleted at the end), so tuning doesn't refit them in every trial; the final model's kept features are printed, and the scoreboard records the selection setting -- see "Feature selection" below |
+| 9 | Make your pipeline work beyond COMPAS | Implemented Option A (Adult income dataset) to remove COMPAS-specific assumptions. The pipeline now dynamically switches configurations using `sys.argv`. Fixed hidden assumptions in `preprocessing.py` (placeholder replacements now apply globally) and `evaluate.py` (conditional COMPAS score checks). Configured `sex` as the audited sensitive attribute while completely dropping `race` to prevent the model from learning historical employment biases. Added a `--predict` CLI flag to output final predictions on unseen data. |
 |---|---|---|
 
 ### Metrics
@@ -123,6 +124,39 @@ AdaBoost is the top model with an honest nested CV accuracy of 0.682 ± 0.015, f
 | `prior_offenses`, `age_in_months`, `juvenile_total` | redundant with other columns (correlation r=1.00, or -- for `juvenile_total` -- an exact sum caught only by VIF) | multicollinearity | dropped |
 
 **Encoder/scaler pair:** chosen empirically -- 4 encoders (one-hot, ordinal, count, target) × 4 scalers (none, standard, min-max, robust), scored by mean accuracy across 15 repeated train/test splits with logistic regression. **Target encoding + standard scaling won**, though a paired comparison against the runner-up (same 15 splits, per-split difference) showed the margin was within noise.
+
+## Beyond COMPAS (Option A)
+
+**How to run the new config:**
+To train and evaluate the model on the Adult dataset, run:
+`python main.py config_adult.yaml`
+
+To generate the predictions for the 2,000 new people and save them to a CSV, use the predict flag:
+`python main.py config_adult.yaml --predict`
+
+**What broke, why, and how I fixed it:**
+
+| What broke | Why it broke | How I fixed it |
+|---|---|---|
+| `KeyError: 'score_text'` | The fairness report hardcoded a check against COMPAS's `score_text` column, which doesn't exist in the Adult dataset. | Wrapped the COMPAS-specific logic in `evaluate.py` with an `if "score_text" in df.columns:` condition. |
+| `ValueError: 'race' is not in list` | I added `race` to `drop_columns` to avoid using it as a feature, but left it in `categorical_features`, causing the `ColumnTransformer` to crash looking for it. | Removed `"race"` from `categorical_features` in the config so it is entirely erased from the pipeline before preprocessing. |
+| `?` placeholders were not replaced by `NaN` | `_canonicalize_categories()` only replaced tokens in columns explicitly listed in `canonical_categories`. Since my Adult config left that empty, it skipped the step. | Rewrote the function in `preprocessing.py` to globally replace placeholder tokens across all `object`/`string` columns independently of the spelling maps. |
+| Predictions on `adult_new.csv` dropping rows | The pipeline's standard deduplication drops rows, which would result in fewer than the required 2,000 predictions. | Added logic to temporarily set `id_column` to `None` in a copied diagnostics config during the `--predict` flow to bypass deduplication entirely. |
+
+**Results Table (Tuned XGBoost with Feature Selection):**
+
+| Metric | Target | Tuned XGBoost Score |
+|---|---|---|---|
+| **ROC-AUC** | ≥ 0.90 | **0.905** |
+| **Accuracy** | ≥ 0.855 | **0.852** |
+| **F1** (threshold 0.5) | ≥ 0.66 | **0.672** |
+
+**Insights & Assumptions:**
+The hardest assumption to find was that the placeholder token replacement was implicitly tied to the spelling canonicalization map. Because the COMPAS configuration explicitly mapped out spelling variants, the missing value replacement piggybacked on it, masking the fact that it wasn't a global data-cleaning step. 
+
+When evaluating feature selection, the pipeline aggressively reduced the dimensionality, keeping exactly 8 out of 37 features: `age`, `education_num`, `capital_gain`, `capital_loss`, `hours_per_week`, `marital_status`, `occupation`, and `relationship`. Notably, absolutely zero of the undocumented "v" columns (`v01`–`v25`) were retained by the selector. This confirms they carry no significant predictive power and are safe to discard. 
+
+Finally, regarding sensitive attributes: although the dataset tracks both `race` and `sex`, I configured the pipeline to audit `sex` and entirely drop `race`. Because historical census and employment data carry heavy systemic biases, neither should be utilized as predictive features for an income model.
 
 ## Environment setup
 

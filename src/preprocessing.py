@@ -21,18 +21,6 @@ from category_encoders import CountEncoder
 
 from src.data_diagnostics import flag_invalid_values
 
-
-'''def _canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placeholder_tokens: set) -> pd.DataFrame:
-    out = df.copy()
-    for col, mapping in columns_and_maps.items():
-        if col not in out.columns:
-            continue
-        cleaned = out[col].astype(str).str.strip()
-        lowered = cleaned.str.lower()
-        out[col] = lowered.map(mapping).fillna(cleaned)
-        out.loc[out[col].astype(str).str.strip().isin(placeholder_tokens), col] = np.nan
-    return out'''
-
 def _canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placeholder_tokens: set) -> pd.DataFrame:
     out = df.copy()
     
