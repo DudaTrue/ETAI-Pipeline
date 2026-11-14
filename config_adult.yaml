@@ -49,8 +49,8 @@ preprocessing:
     categorical_strategy: "most_frequent"
 
 model:
-  type: "gradient_boosting"   # "xgboost" | "adaboost" | "naive_bayes" | "gradient_boosting" | "hist_gradient_boosting" | "logistic_regression" | "dummy" | "random_forest" | "decision_tree" | "oblique_random_forest"
-  params: {random_state: 42}
+  type: "xgboost"   # "xgboost" | "adaboost" | "naive_bayes" | "gradient_boosting" | "hist_gradient_boosting" | "logistic_regression" | "dummy" | "random_forest" | "decision_tree" | "oblique_random_forest"
+  params: {n_estimators: 300, learning_rate: 0.05, max_depth: 4, random_state: 42, n_jobs: -1}
   # logistic_regression:    {max_iter: 2000, class_weight: balanced}
   # naive_bayes:            {}
   # decision_tree:          {random_state: 42, class_weight: balanced}
@@ -63,14 +63,14 @@ model:
   # xgboost:                {n_estimators: 300, learning_rate: 0.05, max_depth: 4, random_state: 42, n_jobs: -1}
 
 feature_selection:
-  enabled: false
+  enabled: true
   min_votes: 2                                      
   random_state: 42
   search_space:                                     
     select__min_votes: {type: int, low: 1, high: 3}
 
 tuning:
-  enabled: false                                    # Turned off for fast testing as requested
+  enabled: true
   n_trials: 5
   n_splits: 5                                       
   random_state: 42                                  

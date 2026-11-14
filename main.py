@@ -14,9 +14,10 @@ import tempfile
 import optuna
 import yaml
 import sys
+import pandas as pd
 from datetime import datetime
 from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
-#from sklearn.pipeline import Pipeline
+
 
 from src.tuning import tune_pipeline, nested_cross_validate, tuning_report
 
@@ -170,6 +171,28 @@ def main():
     shutil.rmtree(cache_dir, ignore_errors=True)
     path = save_run(config.get("output", {}).get("results_dir", "results"), run, config, report)
     print(f"\n{refit}\nFull report (per-fold tables, tuning, confusion matrix, fairness): {path}")
+
+    if "--predict" in sys.argv and "adult" in config["data"]["path"]:
+        print("\nPredicting on adult_new.csv...")
+        df_new = load_data("data/adult_new.csv")
+        
+        diag_config_new = config["diagnostics"].copy()
+        diag_config_new["id_column"] = None 
+        
+        df_new_clean = clean_dataset(df_new, diag_config_new)
+        X_new, _, _ = split_features_target(df_new_clean, config["data"], mnar_sources)
+        
+        probabilities = pipeline.predict_proba(X_new)[:, 1]
+        predictions = (probabilities >= 0.5).astype(int)
+        
+        predictions_df = pd.DataFrame({
+            "id": df_new["id"],
+            "probability": probabilities,
+            "prediction": predictions
+        })
+        
+        predictions_df.to_csv("adult_predictions.csv", index=False)
+        print(f"Saved {len(predictions_df)} predictions to adult_predictions.csv.")
 
 
 if __name__ == "__main__":

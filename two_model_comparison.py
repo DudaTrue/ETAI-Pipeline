@@ -1,7 +1,7 @@
 import pandas as pd
 from src.evaluate import corrected_paired_test
 
-runs = pd.read_csv("results/runs.csv")
+runs = pd.read_csv("results_adult/runs.csv")
 folds = [c for c in runs.columns if c.startswith("fold_")]
 
 # Filter only the XGBoost runs
