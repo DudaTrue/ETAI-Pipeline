@@ -42,6 +42,7 @@ This table is updated after each practical class, so you can always see what cha
 | 7 | Gradient boosting + evaluating with probabilities | Three new model types in `src/model.py`: `gradient_boosting` (scikit-learn's `GradientBoostingClassifier`: each shallow tree fits the gradient of the log-loss left by the trees before it), `hist_gradient_boosting` (the same idea on binned features: much faster on large data, and it handles missing values itself) and `naive_bayes` (`GaussianNB`, a fast probabilistic baseline); gradient boosting is now the model `main.py` runs, each with its search space in `config.yaml`; evaluation now reports **several metrics** (accuracy, balanced accuracy, precision, recall, F1, F-beta, ROC-AUC, PR-AUC) and one **selection metric** (`cv.selection_metric`, ROC-AUC) that tuning maximises and runs are ranked by; out-of-fold **probabilities** (not just labels) feed the reports, with a confusion matrix; `class_weight: balanced` in the commented examples of the models that support it; new `save_scores()` in `src/results.py`: every run adds a row to `results/runs.csv` (the model and its settings, the score on each fold, the no-model floor and the untuned score on the same folds), so any two runs on the same data and folds can be compared with `corrected_paired_test()`; the printed output was reorganised to be easier to read, with the full tables in the results file (optional: keep your own format if you prefer) -- see "Model evaluation" below |
 | 8 | XGBoost + feature selection | New model type `xgboost` (`XGBClassifier`, from the `xgboost` package: gradient boosting with extra regularisation, multi-threaded, handles missing values itself), now the model `main.py` runs, with its search space in `config.yaml`; **feature selection** as a learned step of the Pipeline: new `VoteSelector` class in `src/model.py` (a random forest, gradient boosting and an L1 logistic regression vote; features with at least `min_votes` votes are kept), placed between `"prep"` and `"model"` by `build_pipeline()` when the new `feature_selection` section of `config.yaml` switches it on, so it is re-fitted on the training rows of every fold (never on the rows it is scored on); with tuning on, `select__min_votes` is tuned with the model and assessed by nested CV; the pipeline caches fitted preprocessing and selection steps during a run (`Pipeline(memory=...)`, a temporary folder deleted at the end), so tuning doesn't refit them in every trial; the final model's kept features are printed, and the scoreboard records the selection setting -- see "Feature selection" below |
 | 9 | Make your pipeline work beyond COMPAS | Implemented Option A (Adult income dataset) to remove COMPAS-specific assumptions. The pipeline now dynamically switches configurations using `sys.argv`. Fixed hidden assumptions in `preprocessing.py` (placeholder replacements now apply globally) and `evaluate.py` (conditional COMPAS score checks). Configured `sex` as the audited sensitive attribute while completely dropping `race` to prevent the model from learning historical employment biases. Added a `--predict` CLI flag to output final predictions on unseen data. |
+| W10 | Missing values + a deployable pipeline | The numeric imputer is a config choice (`preprocessing.imputation.numeric_strategy`): `median`, `mean`, `knn` (`KNNImputer`), `iterative` (MICE with one completed dataset, `IterativeImputer`), or `random_forest` (the missForest idea: `IterativeImputer` with a random forest per column); the numeric columns are now scaled before they are imputed (scalers ignore gaps when fitting, and KNN needs one scale); none of the imputers looks at the target, so they also run on new data; the runs table and report record the imputer; `main.py` saves the final fitted pipeline to `models/model.joblib`; new `predict.py`: `python predict.py new.csv predictions.csv` cleans the file with the same rules (no rows dropped) and writes one row per input row (`id`, `probability`, `prediction`); `data/compas_new_people.csv` to try it — see "Missing values" and "Predicting new data" below. |
 |---|---|---|
 
 ### Metrics
@@ -131,6 +132,21 @@ AdaBoost is the top model with an honest nested CV accuracy of 0.682 ± 0.015, f
 | `iterative` vs `random_forest` | +0.0041 | 3/5 | +0.8294 | 0.4535 |
 
 Across 5-fold cross-validation, median achieved the highest mean F1 score (0.6128 ± 0.0262), slightly ahead of knn (0.6120 ± 0.0238), iterative (0.6113 ± 0.0198), and random_forest (0.6071 ± 0.0229). Corrected paired t-tests found no statistically significant differences between any pair of imputers (all $p > 0.32$, with median vs. knn at $p = 0.7855$, vs. iterative at $p = 0.8636$, and vs. random_forest at $p = 0.3220$). I kept median because it is the simplest and fastest option while matching or slightly outperforming the more computationally expensive model-based imputers.
+
+### Predicting new data
+
+To generate predictions on new, unlabeled data using the saved pipeline (`models/model.joblib`), run:
+
+```bash
+python predict.py data/compas_new_people.csv predictions.csv
+```
+
+The output file (`predictions.csv`) contains one row per input row (20 rows in, 20 rows out, including duplicate entries and rows with missing values or unseen categories) with three columns:
+- **`id`**: the person's identifier from the input CSV.
+- **`probability`**: the predicted probability of the positive class (`two_year_recid = 1`), ranging from `0.1815` to `0.8988` on this sample.
+- **`prediction`**: the binary class prediction at the `0.5` threshold (`6` predicted as `1`, `14` predicted as `0`).
+
+
 ## Preprocessing decisions
 
 | Column(s) | Issue found | Mechanism | What was done |

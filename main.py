@@ -9,6 +9,8 @@ This orchestrates the full (deliberately simple) pipeline:
     -> evaluate (train & test) -> save results
 """
 
+import os
+import joblib
 import shutil
 import tempfile
 import optuna
@@ -171,7 +173,15 @@ def main():
 
     shutil.rmtree(cache_dir, ignore_errors=True)
     path = save_run(config.get("output", {}).get("results_dir", "results"), run, config, report)
-    print(f"\n{refit}\nFull report (per-fold tables, tuning, confusion matrix, fairness): {path}")
+
+    # The final fitted pipeline: what predict.py loads to predict new data.
+    model_path = config.get("output", {}).get("model_path", "models/model.joblib")
+    os.makedirs(os.path.dirname(model_path) or ".", exist_ok=True)
+    pipeline.set_params(memory=None)                # the cache folder was deleted; the saved model doesn't need it
+    joblib.dump(pipeline, model_path)
+
+    print(f"\n{refit}\nFull report (per-fold tables, tuning, confusion matrix, fairness): {path}"
+          f"\nModel saved for predict.py: {model_path}")
 
     if "--predict" in sys.argv and "adult" in config["data"]["path"]:
         print("\nPredicting on adult_new.csv...")

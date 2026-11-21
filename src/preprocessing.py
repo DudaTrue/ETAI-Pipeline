@@ -61,10 +61,10 @@ def clean_dataset(df: pd.DataFrame, diagnostics_config: dict) -> pd.DataFrame:
 
     out = _canonicalize_categories(out, diagnostics_config.get("canonical_categories", {}), placeholder_tokens)
 
-    out = out.drop_duplicates()
-    id_column = diagnostics_config.get("id_column")
-    if id_column and id_column in out.columns:
-        out = out.drop_duplicates(subset=id_column, keep="first") #dropping duplicate rows
+    #out = out.drop_duplicates()
+    #id_column = diagnostics_config.get("id_column")
+    #if id_column and id_column in out.columns:
+    #    out = out.drop_duplicates(subset=id_column, keep="first") #dropping duplicate rows
 
     columns_to_drop = [c for c in diagnostics_config.get("redundant_columns", []) if c in out.columns]
     out = out.drop(columns=columns_to_drop)
