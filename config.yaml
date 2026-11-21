@@ -60,8 +60,11 @@ preprocessing:
   mnar_indicator_sources: ["priors_count", "c_charge_degree"]
   random_state: 42
   imputation:
-    numeric_strategy: "median"
+    numeric_strategy: "random_forest"  # median | iterative | knn | random_forest
     categorical_strategy: "most_frequent"
+    n_neighbors: 5                                  # knn
+    max_iter: 10                                    # iterative, random_forest
+    n_estimators: 50                                # random_forest (trees per column)
 
 model:
   type: "xgboost"   # "adaboost" | "naive_bayes" | "gradient_boosting" | "hist_gradient_boosting" | "logistic_regression" | "dummy" | "random_forest" | "decision_tree" | "oblique_random_forest"
@@ -85,7 +88,7 @@ feature_selection:
     select__min_votes: {type: int, low: 1, high: 3}
 
 tuning:
-  enabled: true
+  enabled: false
   n_trials: 5
   n_splits: 5                                       # folds that score each candidate
   random_state: 42                                  # seeds the sampler and those folds

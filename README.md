@@ -108,6 +108,29 @@ Decision tree (+0.078) and random forest (+0.037) gained substantially from tuni
 
 AdaBoost is the top model with an honest nested CV accuracy of 0.682 ± 0.015, followed closely by Random Forest at 0.681 ± 0.018 and Oblique Random Forest at 0.680 ± 0.012. However, its lead over both random forest variants (0.001 to 0.002) is well within the fold-to-fold standard deviations (±0.012 to ±0.018), making the ensemble performances practically equivalent within noise. The chosen hyperparameters reflect how each architecture operates: AdaBoost uses shallow base estimators (max_depth=4) paired with a conservative learning_rate=0.167 and fewer iterations (n_estimators=55) to boost sequentially without overfitting noisy labels, while Random Forest relies on deeper independent trees (max_depth=16) stabilized by large leaf minimums (min_samples_leaf=24) to average out variance. For the final deliverable, tuned AdaBoost should be reported at its honest nested CV accuracy of 0.682 ± 0.015 with a generalization gap of +0.007.
 
+### Missing Values
+
+#### Imputer Ranking (5-Fold CV, F1)
+
+| Rank | Imputer | Mean F1 | Std |
+|---:|---|---:|---:|
+| 1 | `median` | 0.6128 | 0.0262 |
+| 2 | `knn` | 0.6120 | 0.0238 |
+| 3 | `iterative` | 0.6113 | 0.0198 |
+| 4 | `random_forest` | 0.6071 | 0.0229 |
+
+#### Pairwise Corrected Paired *t*-Tests
+
+| Comparison | Mean Diff | Wins | *t*-stat | *p*-value |
+|---|---:|:---:|---:|---:|
+| `median` vs `knn` | +0.0008 | 2/5 | +0.2911 | 0.7855 |
+| `median` vs `iterative` | +0.0015 | 2/5 | +0.1831 | 0.8636 |
+| `median` vs `random_forest` | +0.0057 | 3/5 | +1.1289 | 0.3220 |
+| `knn` vs `iterative` | +0.0008 | 2/5 | +0.1153 | 0.9138 |
+| `knn` vs `random_forest` | +0.0049 | 4/5 | +1.0259 | 0.3629 |
+| `iterative` vs `random_forest` | +0.0041 | 3/5 | +0.8294 | 0.4535 |
+
+Across 5-fold cross-validation, median achieved the highest mean F1 score (0.6128 ± 0.0262), slightly ahead of knn (0.6120 ± 0.0238), iterative (0.6113 ± 0.0198), and random_forest (0.6071 ± 0.0229). Corrected paired t-tests found no statistically significant differences between any pair of imputers (all $p > 0.32$, with median vs. knn at $p = 0.7855$, vs. iterative at $p = 0.8636$, and vs. random_forest at $p = 0.3220$). I kept median because it is the simplest and fastest option while matching or slightly outperforming the more computationally expensive model-based imputers.
 ## Preprocessing decisions
 
 | Column(s) | Issue found | Mechanism | What was done |

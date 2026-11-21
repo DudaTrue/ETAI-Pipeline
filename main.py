@@ -154,6 +154,7 @@ def main():
 
     row = {"run": run, "data": config["data"]["path"], "model": model_type, "tuned": tuning_enabled,
            "encoder": config["preprocessing"]["encoder"], "scaler": config["preprocessing"]["scaler"],
+           "imputer": config["preprocessing"].get("imputation", {}).get("numeric_strategy", "median"),
            "feature_selection": (f"min_votes {pipeline.named_steps['select'].min_votes}" if selection_enabled else "off"),
            "params": str(config["model"].get("params")), "tuned_params": str(study.best_params) if tuning_enabled else "",
            "metric": selection_metric, "mean": final_scores["validation"].mean(),
@@ -162,7 +163,7 @@ def main():
     runs = save_scores(config.get("output", {}).get("scoreboard", "results/runs.csv"), row)
     same = runs[(runs["data"] == row["data"]) & (runs["metric"] == selection_metric)]
     board = (same.sort_values("mean", ascending=False)
-             [["run", "model", "tuned", "feature_selection", "mean", "std", "untuned", "floor"]]
+             [["run", "model", "tuned", "imputer", "feature_selection", "mean", "std", "untuned", "floor"]]
              .rename(columns={"mean": selection_metric})
              .to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     print(f"\nScoreboard (runs on the same data and metric; best first)\n{board}")
